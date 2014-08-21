@@ -1,0 +1,134 @@
+<!doctype html>
+<html>
+	<head>
+	<meta charset="utf-8" />
+	<title>Relval Details</title>
+
+	<link href="https://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css" rel="stylesheet">
+
+	</head>
+	<body>
+		<script type='text/javascript' src="https://code.jquery.com/jquery-2.1.1.min.js"></script>
+		<script type='text/javascript' src="https://netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+	
+
+	<div class="container">
+		<div class="span3"></div>
+		<div class="col-md-10"  id="results"></div>
+		</div>
+		<div class="span3">
+		</div>
+
+	<script>
+        
+	$(document).ready(function () {
+		
+          	var hash = document.location.hash.replace( /^#/, '' );
+
+          	console.log( 'hash: ')
+          	console.log( hash )
+
+          	var parts = hash.split( ';' )
+          	var arch = parts[ 0 ]
+          	var releaseQueue = parts[ 1 ].substring( 0 , parts[ 1 ].lastIndexOf( "_" ) ) 
+          	var ibDate = parts[ 1 ].substring( parts[ 1 ].lastIndexOf( "_" ) + 1 , parts[ 1 ].length ) 
+          
+	  	console.log( arch  ) 		 
+          	console.log( releaseQueue )
+          	console.log( ibDate )
+
+
+          	var jsonFilePath = 'data/relvals/' + arch + '/' + ibDate + '/' + releaseQueue +'.json';
+          	console.log( ' I will use this file: ' )
+          	console.log( jsonFilePath )
+
+
+          	loadResults = function( results ){
+
+			console.log( 'contents:')
+
+			var table = getTable( results )
+			$("#results").append( table )
+          	}
+		
+		addHeaderToTable = function ( table ) {
+
+			var workflowTitle = $( '<th>' ).text( "Workflow" )
+
+			var headRow = $( '<tr>' )
+			
+			headRow.append( workflowTitle )
+
+			for ( var i = 0; i < 5 ; i++){
+
+				var stepTitle = $( '<th>' ).text( "Step " + (i+1) )
+				headRow.append( stepTitle )
+
+			}
+
+			var header = $( '<thead>' )
+			header.append( headRow )
+			table.append( header )			
+
+		}
+
+		addWorkflowRow = function( workflowResult , table ) {
+
+			var row = $( '<tr>' )
+			var workflowName = workflowResult.id + ' ' + workflowResult.name
+
+			row.append( $( '<td>' ).text( workflowName ) )
+
+			for ( var stepResult in workflowResult.steps ){
+
+				var text = workflowResult.steps[ stepResult ]
+				var ResLabel = $( '<span>' ).text( text )
+
+				if( text == 'PASSED' ){
+					ResLabel.attr( 'class' , 'label label-success')
+				}else if( text == 'FAILED' ){
+					ResLabel.attr( 'class' , 'label label-danger')
+				}else{
+					ResLabel.attr( 'class' , 'label label-default')
+				}
+
+				row.append( $( '<td>' ).append( ResLabel ) )
+			}
+
+
+			table.append( row )
+	
+		}
+
+                getTable = function( results ){
+
+			var table = $( '<table>' ).attr( 'class' , 'table table-striped' )
+			addHeaderToTable( table )
+
+			for ( var key in results ){
+				addWorkflowRow( results[ key ] , table )
+			}
+	
+			return table
+
+		}
+
+		$.getJSON( jsonFilePath , loadResults )
+
+	  // bind the event when the url has changed
+    /*      $(window).hashchange(hashchanged);
+	
+          function hashchanged(){
+
+            var hash = location.hash.replace( /^#/, '' );
+            
+            console.log( ' hash changed:' )
+            console.log( hash )
+            
+          }
+*/
+	})	
+	
+	</script>
+	</body>
+</html>
