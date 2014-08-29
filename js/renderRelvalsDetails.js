@@ -1,4 +1,4 @@
-//-------------------------------------------------------------------------------
+//------------------------------------------------------------------------------
 // RelVals Results
 // ------------------------------------------------------------------------------
 
@@ -65,13 +65,13 @@ genAddSummaryRow = function( genArch , genIB ){
 genAddShowAllRowLink = function( genArch, genIB ){
 
   /**
-   * Adds to the workflos table a row which has a link which toggles the workflows after the 20th
+   * Adds to the workflows table a row which has a link which toggles the workflows after the 20th
    */
   addShowAllRowLink = function( table , startRow , endRow ){
 
     var row = $( '<tr>' )
     var linkCell = $( '<td>' ).attr( 'colspan' , 7 )
-    var showAllLink = getLinkWithGlyph( '#' + genArch + ';' + genIB  , 'Show All' , 'glyphicon-chevron-down' , 'showAllLink'+ '-' + genArch + '-' + genIB )
+    var showAllLink = getLinkWithGlyph( '#' + genArch + ';' + genIB  , 'Show All' , 'glyphicon-chevron-right' , 'showAllLink'+ '-' + genArch + '-' + genIB )
 
     showAllLink.click( genToggleHiddenRows( genArch, genIB , startRow , endRow ) )
 
@@ -91,11 +91,8 @@ genAddShowAllRowLink = function( genArch, genIB ){
 getlinkAddress = function( arch , ib , step , workflowName , workflowID ){
 
   var filename = ''
-  if ( step == 0 ){
-    filename = 'step1_dasquery.log'
-  }else{
-    filename = 'step' + ( parseInt( step ) + 1 ) + '_' + workflowName + '.log'
-  }
+  filename = 'step' + ( parseInt( step ) + 1 ) + '_' + workflowName + '.log'
+  
    
   var address = 'http://cmssdt.cern.ch/SDT/cgi-bin/buildlogs/' + arch + '/' + ib + '/pyRelValMatrixLogs/run/' + workflowID + '_' + workflowName + '/' + filename
 
@@ -129,6 +126,8 @@ fillWorkflowCell = function( cell , workflowID , workflowShortName , numToShow ,
   var link = $( "<a>" ).attr( "href" , '#' + arch  + ';' + ib )
   link.attr( 'showCMD' , 'cmd-div-' + arch + '-' + workflowID + ';' + numToShow )
  // link.attr( 'style' , 'color:black' ) 
+
+  link.append( $( '<small>' ).append( $( '<small>' ).append( $( '<span>').attr( 'class' , 'glyphicon glyphicon-chevron-right' )  )  ) )
   link.append( $( '<small>' ).text( 'cmd' ) )
   cell.append( link )
 
@@ -173,15 +172,30 @@ addWorkflowRow = function( workflowResult , table , counter , statistics , arch 
   for ( var stepNumber in workflowResult.steps ){
 
     var text = workflowResult.steps[ stepNumber ][ 'status' ]
+    var errors = workflowResult.steps[ stepNumber ][ 'errors' ]
+    var warnings = workflowResult.steps[ stepNumber ][ 'warnings' ]
 
-    var resLabel = $( '<span>' ).text( text )
+    var resLabel = $( '<span>' )
+    resLabel.append( $( '<samp>' ).text( LABELS_TEXT[ text ]) )
 
     if( text == 'PASSED' ){
 
       numToShow++;
 
       nothingRun = false;
-      resLabel.attr( 'class' , 'label label-success')
+      if ( errors > 0 ){
+
+        resLabel.attr( 'class' , 'label').attr( 'style' , 'background-color:' + PASSED_ERRORS_COLOR )
+
+      }else if ( warnings > 0 ){
+
+        resLabel.attr( 'class' , 'label' ).attr( 'style' , 'background-color:' + PASSED_WARNINGS_COLOR )
+
+      }else{
+
+        resLabel.attr( 'class' , 'label' ).attr( 'style' , 'background-color:' + PASSED_COLOR )
+
+      }
 
       var link = getLinkLabelToResultToResLabel( arch , ib , stepNumber , workflowResult.name , workflowResult.id , '' )
       link.append( resLabel )
@@ -203,10 +217,15 @@ addWorkflowRow = function( workflowResult , table , counter , statistics , arch 
       var cell = $( '<td>' ).append( link )
       row.append( cell )
 
+      resLabel.attr( 'class' , 'label' ).attr( 'style' , 'background-color:' + FAILED_COLOR  )
+
+     
+
+
 
     }else if( text == 'NOTRUN' ){
 
-      resLabel.attr( 'class' , 'label label-default')
+      resLabel.attr( 'class' , 'label' ).attr( 'style' , 'background-color:' + NOT_RUN_COLOR )
       row.append( $( '<td>' ).append( resLabel ) )
 
     }else {
@@ -261,7 +280,7 @@ addWorkflowRow = function( workflowResult , table , counter , statistics , arch 
 /**
  * Adds to the table with relvals results
  */
-addRowsTable = function( results , arch , ib , table ){
+addRowsTable = function( results , arch , ib , table , progressBar ){
 
   table.attr( 'class' , 'table table-striped table-condensed' )
   table.attr( 'id' , 'resultsTable-' + arch + '-' + ib ) 
@@ -289,6 +308,11 @@ addRowsTable = function( results , arch , ib , table ){
   for ( var key in results ){
     // nothingRun is to know if no step was run in the workflow
     nothingRun = addWorkflowRow( results[ key ] , table , counter , resultsSummary , arch , ib , results.length )
+
+    // it won't reach 100 because I don't count the ones that have no steps run
+    var percentage = ( ( counter / results.length ) * 50 ) + 50
+
+    setProgressBar( progressBar , percentage )
     if ( !nothingRun ){
       counter++;
     }
@@ -296,7 +320,8 @@ addRowsTable = function( results , arch , ib , table ){
 
   addSummaryRow = genAddSummaryRow( arch , ib ) 
   addSummaryRow( table , resultsSummary )
- 
+
+  setProgressBar( progressBar , 100 ) 
 
 }
 
@@ -397,18 +422,22 @@ getNavTabs = function( archsList , ibName ){
  * It generates a function that 
  * Reads the results of one file, gets the table, and appends it to the tab pane
  */
-generateAddResultsTableToPane = function( tabPaneID , arch , ibName ){
+generateAddResultsTableToPane = function( tabPaneID , arch , ibName , progressBar , progressDiv ){
+
 
   return function( results ){
 
     console.log ( 'modifying' )
     console.log ( tabPaneID ) 
+    setProgressBar( progressBar , 50 )
 
     startDate = new Date()
     console.log( 'start: ' + startDate )
     var table = $( '<table>' )
     $( '#' + tabPaneID ).append( table )
-    addRowsTable( results , arch , ibName , table )
+    addRowsTable( results , arch , ibName , table , progressBar )
+
+    progressDiv.hide( 100 )
 
     endDate = new Date()
     console.log( 'end: ' + endDate )
@@ -425,9 +454,8 @@ generateAddResultsTableToPane = function( tabPaneID , arch , ibName ){
 /**
  * Creates the tab panes based on the archsList and the IBName
  */
-getTabPanes = function( archsList , ibName ){
+fillTabPanes = function( tabContent , archsList , ibName ){
 
-  var tabContent = $( '<div>' ).attr( 'class' , 'tab-content' )
 
 
   for( var i = 0; i < archsList.length ; i++){
@@ -440,14 +468,32 @@ getTabPanes = function( archsList , ibName ){
     }
    
     var tabPaneID = arch + '-tab' 
-    var tabPane = $( '<div>' ).attr( 'class' , tabPaneClass ).attr( 'id' , tabPaneID ) 
-    tabContent.append( tabPane ) 
+    var tabPane = $( '<div>' ).attr( 'class' , tabPaneClass ).attr( 'id' , tabPaneID )
+
+    var divLinkPrevVersion = $( '<div>' ).attr( 'align' , 'center' )
+    var addressPrevVersion = getAddresstoPrevVersion( arch, ibName )
+    linkToPrevVersion = getLinkWithGlyph( addressPrevVersion , ' Click here to see the previous version' , 'glyphicon-warning-sign' , '' )
+    divLinkPrevVersion.append( linkToPrevVersion )
+
+    tabPane.append( $( '<br>' ) )
+    tabPane.append( divLinkPrevVersion ) 
+    tabPane.append( $( '<br>' ) )
    
     var ibDate = ibName.substring( ibName.lastIndexOf( "_" ) + 1 , ibName.length ) 
     var releaseQueue = ibName.substring( 0 , ibName.lastIndexOf( "_" ) )
     var jsonFilePath = 'data/relvals/' + arch + '/' + ibDate + '/' + releaseQueue +'.json';
 
-    var addResultsTableToPane = generateAddResultsTableToPane( tabPaneID , arch , ibName )
+    var progressDiv = $( '<div>' ).attr( 'class' , 'progress' )
+    var progressBar = $( '<div>' ).attr( 'class' , 'progress-bar progress-bar-striped active' ).attr( 'role' , 'progressbar' )
+                                  .attr( 'aria-valuenow' , '0' ) .attr( 'aria-valuemin' , '0' )
+                                  .attr( 'aria-valuemax' , '100' ).attr( 'style' , 'width: 30%;' )
+                                  .text( 'loading...' )
+
+    progressDiv.append( progressBar )
+    tabPane.append( progressDiv )   
+
+    tabContent.append( tabPane )
+    var addResultsTableToPane = generateAddResultsTableToPane( tabPaneID , arch , ibName , progressBar , progressDiv )
 
     console.log( 'Reading: ' )
     console.log( jsonFilePath )
@@ -457,7 +503,6 @@ getTabPanes = function( archsList , ibName ){
 
   }
 
-  return tabContent
 
 
 }
@@ -473,7 +518,7 @@ genAddCommandToDiv = function( cmdTextSmall ){
   addCommandToDiv = function( commandInfo ){
 
     var command = commandInfo[ 'command' ] 
-    cmdTextSmall.text( command ) 
+    cmdTextSmall.append( $( '<samp>' ).text( command ) ) 
 
   }
   return addCommandToDiv
@@ -542,19 +587,110 @@ genGetHashCommandsToDiv = function( workflowID , steps , commandsDiv ){
 // ------------------------------------------------------------------------------
 
 /**
+ * generates a link to the previous version of the page
+ */
+getAddresstoPrevVersion = function( arch, ibName ){
+
+  var ibNameParts = ibName.split( '_' )
+  var rel = ibNameParts[ 1 ] + '.' + ibNameParts[ 2 ]
+  var dateParts = ibNameParts[ ibNameParts.length - 1 ].split( '-' )
+  var time = dateParts[ 3 ].replace( '00' , '' )
+
+  var tempDate = new Date( dateParts[ 0 ] , dateParts[ 1 ] - 1 , dateParts[ 2 ] )
+
+  var weekDay = ['sun','mon','tue','wed','thu','fri','sat'][ tempDate.getDay() ]
+
+  console.log( 'Date :' + weekDay )
+  console.log( tempDate )
+  console.log( dateParts[ 1 ] )
+
+
+
+  var dayTimeRel = rel + '-' + weekDay + '-' + time
+
+
+  var link = 'https://cmssdt.cern.ch/SDT/cgi-bin//showMatrixTestLogs.py/' + arch +'/www/' + weekDay + '/' + dayTimeRel + '/' + ibName + '/pyRelValMatrixLogs/run'
+
+  return link
+
+}
+
+/**
+ * adds to the rwo a cell with the label and the legend
+ */
+addLegendCell = function( row , color , itemText , description ){
+
+  var labelCell = $( '<td>' ).attr( 'style' , 'border: none;' )
+  var descCell = $( '<td>' ).attr( 'style' , 'border: none;' )
+  var label = $( '<span>' ).attr( 'style' , 'background-color:' + color ).attr( 'class' , 'label' )
+  label.append( $( '<samp>' ).text( itemText ) )
+
+
+  labelCell.append( label )
+  descCell.append( $( '<span>' ).text( description ) )
+
+  row.append( labelCell )
+  row.append( descCell )
+
+
+}
+
+
+/**
+ * creates the list that shows the legend for the results
+ */
+getLegendTable = function( ){
+
+  var table = $( '<table>' ).attr( 'class' , 'table table-condensed' ).attr( 'style' , 'border: none;' )
+
+  var row1 = $( '<tr>' )
+  addLegendCell( row1 , PASSED_COLOR , LABELS_TEXT[ 'PASSED' ] , 'Passed without error or warning messages' )
+  addLegendCell( row1 , PASSED_ERRORS_COLOR , LABELS_TEXT[ 'PASSED' ] , 'Passed with error messages' )
+  addLegendCell( row1 , NOT_RUN_COLOR , LABELS_TEXT[ 'NOTRUN' ] , 'Not run' )
+  table.append( row1 )
+
+  var row2 = $( '<tr>' )
+  addLegendCell( row2 , PASSED_WARNINGS_COLOR , LABELS_TEXT[ 'PASSED' ] , 'Passed with warning messages' )
+  addLegendCell( row2 , FAILED_COLOR , LABELS_TEXT[ 'FAILED' ] , 'Failed' )
+  table.append( row2 )
+
+
+  return table
+
+
+}
+
+/**
  * Returns the structure of the title of the web page
  */
 getHeader = function( arch, ibName ){
 
   var header = $( '<div>' )
   var title = $( '<h1>' ).text( 'Integration Build ' + ibName )
-
+  var legendTitle = $( '<h5>' ).text( 'Legend: ' )
+  var legendLink = getLinkWithGlyph( '#' + arch + ';' + ibName , 'Legend' , 'glyphicon-chevron-right' , '' )
 
   header.append( title ).append( $( '<br>' ) )
 
   var linkToMainPage = getLinkWithGlyph( 'https://cmssdt.cern.ch/SDT/html/showIB.html' , ' Back to IB Portal' , 'glyphicon-hand-up' , 'backToMainPageLink' )
 
-  header.append( $( '<br>' ) ).append( linkToMainPage ).append( $( '<hr>' ) ).append( $( '<br>' ) )
+  header.append( $( '<br>' ) ).append( linkToMainPage ).append( $( '<br>' ) )
+  header.append( $( '<br>' ) )
+
+  var legendDiv = $( '<div>' ).attr( 'class' , 'col-md-10' )
+  var legendRow = $( '<div>' ).attr( 'class' , 'row' )
+  legendRow.append( legendDiv )
+  var legendTable = getLegendTable()
+  legendTable.hide()
+  legendDiv.append( legendTable )
+  var toggleLegend = genToggleLegend( legendTable )
+  legendLink.click( toggleLegend )
+
+  header.append( legendLink  )
+  header.append( legendRow )
+
+  header.append( $( '<hr>' ) )
+
 
   return header
 
@@ -661,7 +797,7 @@ genToggleSummaryTables = function( genArch , genIB ){
     if ( toggleLinkText.text() == 'Show summary' ){
 
       toggleLinkText.text( 'Hide summary' )
-      toggleLinkTextGlyph.attr( 'class' , 'glyphicon glyphicon-chevron-up' )
+      toggleLinkTextGlyph.attr( 'class' , 'glyphicon glyphicon-chevron-down' )
 
      }else {
       toggleLinkText.text( 'Show summary' )
@@ -690,21 +826,55 @@ genToggleHiddenRows = function( genArch , genIB , minRow , maxRow ){
 
     if ( showAllLinkText.text() == 'Show All' ){
       showAllLinkText.text( 'Hide ' )
-      toggleLinkTextGlyph.attr( 'class' , 'glyphicon glyphicon-chevron-up' )
+      toggleLinkTextGlyph.attr( 'class' , 'glyphicon glyphicon-chevron-down' )
 
     }else {
       showAllLinkText.text( 'Show All' )
-      toggleLinkTextGlyph.attr( 'class' , 'glyphicon glyphicon-chevron-down' )
+      toggleLinkTextGlyph.attr( 'class' , 'glyphicon glyphicon-chevron-right' )
     }
   }
 
   return toggleHiddenRows
 }
 
+/**
+ * Generates the function with the table that arrives as a parameter
+ */
+genToggleLegend = function( genTable ){
+  /**
+   * Toggles the table that shows the legend
+   */
+  toggleLegend = function(){
+
+    console.log( 'toggle legend' )
+    var glyph = $( this ).find( 'span.glyphicon' )
+    
+   if( glyph.attr( 'class' ) == 'glyphicon glyphicon-chevron-right' ){
+      glyph.attr( 'class' , 'glyphicon glyphicon-chevron-down' )
+    } else {
+      glyph.attr( 'class' , 'glyphicon glyphicon-chevron-right' )
+    }
+
+
+    genTable.toggle()
+
+  }
+
+  return toggleLegend
+
+}
 
 toggleCommands2 = function( ){
 
   console.log( 'new function' )
+
+  var glyph = $( this ).find( 'span.glyphicon') 
+
+  if( glyph.attr( 'class' ) == 'glyphicon glyphicon-chevron-right' ){
+    glyph.attr( 'class' , 'glyphicon glyphicon-chevron-down' )
+  } else {
+    glyph.attr( 'class' , 'glyphicon glyphicon-chevron-right' )
+  }
 
   var urlParts = $(this).attr( 'href').split( ';' )  
   var arch = urlParts[ 0 ].replace( '#' , '' )
@@ -763,3 +933,35 @@ genToggleCommands = function( commandsDiv , numSteps , fileNameCommands , workfl
 
   return toggleCommands
 }
+
+//------------------------------------------------------------------------------------------------
+// Progress Bar
+// -----------------------------------------------------------------------------------------------
+
+/**
+ * sets the progress that arrives as parameter bar filled with a the percentage set as parameter
+ */
+setProgressBar = function ( progressBar , percentage ){
+
+  progressBar.attr( 'style' , 'width: ' + percentage + '%' )
+  progressBar.attr( 'aria-valuenow' , '20' )
+
+}
+
+//------------------------------------------------------------------------------------------------
+// CONSTANTS
+// -----------------------------------------------------------------------------------------------
+
+PASSED_COLOR = 'rgb(92, 184, 92)'
+PASSED_WARNINGS_COLOR = 'rgb(92, 145, 92)'
+PASSED_ERRORS_COLOR = 'rgb(230, 188, 99)'
+FAILED_COLOR = 'rgb(217, 83, 79)'
+NOT_RUN_COLOR = 'rgb(153, 153, 153)' 
+
+LABELS_TEXT = {}
+LABELS_TEXT[ 'PASSED' ] = 'Passed'
+LABELS_TEXT[ 'FAILED' ] = 'Failed '
+LABELS_TEXT[ 'NOTRUN' ] = 'NotRun' 
+
+
+
