@@ -121,33 +121,33 @@ getLinkLabelToResultToResLabel = function( arch , ib , stepNumber , workflowName
  * creates the cell of the table that describes the workflow name
  * and adds the commands for each step. they are hidden by default
  */
-getWorkflowCell = function( workflowID , workflowShortName , steps , arch , ib , fileNameCommands ){
+fillWorkflowCell = function( cell , workflowID , workflowShortName , numToShow , arch , ib ){
 
-  var cell = $( '<td>' )
   cell.append( $( '<span>' ).text( workflowID + ' ' +  workflowShortName + '  ' ) )
+
     
-  link = $( "<a>" ).attr( "href" , '#' + arch + ';' + ib )
+  var link = $( "<a>" ).attr( "href" , '#' + arch  + ';' + ib )
+  link.attr( 'showCMD' , 'cmd-div-' + arch + '-' + workflowID + ';' + numToShow )
  // link.attr( 'style' , 'color:black' ) 
   link.append( $( '<small>' ).text( 'cmd' ) )
   cell.append( link )
 
   cell.append( $( '<br>' ) )
   
-  var commandsDiv = $( '<div>' )
+  var commandsDiv = $( '<div>' ).attr( 'id' , 'cmd-div-' + arch + '-' + workflowID.replace( '.' , '-' ) )
 
-  // if the text is "-" it means that the commands have not been loaded
-  // when the commands are loaded the text becomes "Commands:"
-  var commandsTitle = $( '<strong>' ).text( '-' )
 
-  commandsDiv.append( $( '<small>' ).append( commandsTitle ) )
-  commandsDiv.append( $( '<br>' ) )
+  // this atribube indicates if the div has been shown, to avoid filling it again with the commands
+  // each time the user clicks
+  commandsDiv.attr( 'wasShown' , 'no' )
+
+
  
-  link.click( genToggleCommands( commandsDiv , steps , commandsTitle , fileNameCommands , workflowID ) )
+  link.click( toggleCommands2 )
   commandsDiv.hide()
 
   cell.append( commandsDiv )
 
-  return cell
 }
 /**
  * Adds a row to the workflow with the relval result info, it also modifies the statistics
@@ -155,16 +155,19 @@ getWorkflowCell = function( workflowID , workflowShortName , steps , arch , ib ,
  * The statistics is a array of dictionaries, each position has a dictionary with the entries
  * "passed" , "failed" and "notrun" with the numbers for the step
  */
-addWorkflowRow = function( workflowResult , table , counter , statistics , arch , ib , totalRows , fileNameCommands ) {
+addWorkflowRow = function( workflowResult , table , counter , statistics , arch , ib , totalRows ) {
 
   var row = $( '<tr>' ).attr( 'id' , 'row' + counter + '-' + arch )
 
   row.append( $( '<td>' ).append( $( '<b>'  ).text( counter ) ) )
 
-  row.append( getWorkflowCell( workflowResult.id , workflowResult.name.split( '+' )[0] , workflowResult.steps , arch , ib , fileNameCommands ) )
+  var workflowCell = $( '<td>' )
+
+  row.append( workflowCell )
 
   // this is to fill all the rows with cells
   var numCells = 0;
+  var numToShow = 0
 
   var nothingRun = true;
   for ( var stepNumber in workflowResult.steps ){
@@ -174,6 +177,8 @@ addWorkflowRow = function( workflowResult , table , counter , statistics , arch 
     var resLabel = $( '<span>' ).text( text )
 
     if( text == 'PASSED' ){
+
+      numToShow++;
 
       nothingRun = false;
       resLabel.attr( 'class' , 'label label-success')
@@ -186,6 +191,8 @@ addWorkflowRow = function( workflowResult , table , counter , statistics , arch 
 
 
     }else if( text == 'FAILED' ){
+
+      numToShow++;
 
       nothingRun = false;
       resLabel.attr( 'class' , 'label label-danger')
@@ -225,6 +232,11 @@ addWorkflowRow = function( workflowResult , table , counter , statistics , arch 
     return true;
   }
 
+ 
+  // I add the contents here after the number of workflows to show has been caculated
+  fillWorkflowCell( workflowCell , workflowResult.id , workflowResult.name.split( '+' )[0] , numToShow , arch , ib )
+
+
   // fill the missing cells to have 5 in total
   for ( var numEmpty = 0; numEmpty < 5-numCells; numEmpty++ ){
     row.append( $( '<td>' ) )
@@ -247,11 +259,11 @@ addWorkflowRow = function( workflowResult , table , counter , statistics , arch 
 }
 
 /**
- * Returns the table with the relvals results
+ * Adds to the table with relvals results
  */
-getTable = function( results , arch , ib ){
+addRowsTable = function( results , arch , ib , table ){
 
-  var table = $( '<table>' ).attr( 'class' , 'table table-striped table-condensed' )
+  table.attr( 'class' , 'table table-striped table-condensed' )
   table.attr( 'id' , 'resultsTable-' + arch + '-' + ib ) 
 
   addHeaderToTable( table )
@@ -272,13 +284,11 @@ getTable = function( results , arch , ib ){
   var releaseQueue = ib.substring( 0 , ib.lastIndexOf( "_" ) )
   var ibDate = ib.substring( ib.lastIndexOf( "_" ) + 1 , ib.length )
  
-  var fileNameCommands = 'data/commands/' + arch + '/' + ibDate + '/' + releaseQueue + '.json'
-  
 
   var counter = 1;
   for ( var key in results ){
     // nothingRun is to know if no step was run in the workflow
-    nothingRun = addWorkflowRow( results[ key ] , table , counter , resultsSummary , arch , ib , results.length , fileNameCommands )
+    nothingRun = addWorkflowRow( results[ key ] , table , counter , resultsSummary , arch , ib , results.length )
     if ( !nothingRun ){
       counter++;
     }
@@ -287,7 +297,6 @@ getTable = function( results , arch , ib ){
   addSummaryRow = genAddSummaryRow( arch , ib ) 
   addSummaryRow( table , resultsSummary )
  
-  return table
 
 }
 
@@ -393,10 +402,20 @@ generateAddResultsTableToPane = function( tabPaneID , arch , ibName ){
   return function( results ){
 
     console.log ( 'modifying' )
-    console.log ( tabPaneID )
-    var table = getTable( results , arch , ibName )
+    console.log ( tabPaneID ) 
 
+    startDate = new Date()
+    console.log( 'start: ' + startDate )
+    var table = $( '<table>' )
     $( '#' + tabPaneID ).append( table )
+    addRowsTable( results , arch , ibName , table )
+
+    endDate = new Date()
+    console.log( 'end: ' + endDate )
+
+    console.log( endDate - startDate )
+
+    
   }
 
 }
@@ -422,7 +441,8 @@ getTabPanes = function( archsList , ibName ){
    
     var tabPaneID = arch + '-tab' 
     var tabPane = $( '<div>' ).attr( 'class' , tabPaneClass ).attr( 'id' , tabPaneID ) 
-    
+    tabContent.append( tabPane ) 
+   
     var ibDate = ibName.substring( ibName.lastIndexOf( "_" ) + 1 , ibName.length ) 
     var releaseQueue = ibName.substring( 0 , ibName.lastIndexOf( "_" ) )
     var jsonFilePath = 'data/relvals/' + arch + '/' + ibDate + '/' + releaseQueue +'.json';
@@ -435,7 +455,6 @@ getTabPanes = function( archsList , ibName ){
 
     console.log( 'Finished Reading: ' )
 
-    tabContent.append( tabPane )
   }
 
   return tabContent
@@ -468,6 +487,7 @@ genGetHashCommandsToDiv = function( workflowID , steps , commandsDiv ){
 
   console.log( 'Generating' )
   console.log( 'genGetHashCommandsToDiv' )
+  console.log( 'total steps: ' + steps )
 
   /**
    * the goal here is to get the hash for each command to then pass it to the next function
@@ -475,24 +495,18 @@ genGetHashCommandsToDiv = function( workflowID , steps , commandsDiv ){
   getHashCommandsToDiv = function( hashesCommands ){
 
     console.log( 'reading data' )
+    console.log( 'total steps: ' + steps )
 
-    for ( var stepNumber in steps ){
+    for ( var i = 1; i <= steps ; i++ ){
 
-    //     commandsDiv.append( $( '<small>' ).text( 'step' + (parseInt(stepNumber)+1) + ':' ) )
-    //    commandsDiv.append( $( '<br>' ) )
-    //    commandsDiv.append( $( '<small>' ).text( 'command' ) )
-    //    commandsDiv.append( $( '<br>' ) )
-      // when the step was not run is not shown, neither the rest of the steps
-      if ( steps[ stepNumber ][ 'status' ] == 'NOTRUN' ){
-        break
-      }
-      commandsDiv.append( $( '<small>' ).text( 'step' + (parseInt(stepNumber)+1) + ':' ) )
-      commandsDiv.append( $( '<br>' ) )
-
-      var index = workflowID + '-' + ( parseInt( stepNumber ) + 1 )
+      var stepNumberSM = $( '<small>' ).text( 'step' + i  + ':' )
+      commandsDiv.append( $( '<strong>' ).append( stepNumberSM )  )
+      console.log( i )
+      var index = workflowID + '-' + i
       var hashCommand = hashesCommands[ index ]
 
-      console.log( 'this is the hash for step ' + stepNumber )
+      console.log( workflowID )
+      console.log( 'this is the hash for step ' + i )
       console.log( hashCommand )
 
       if ( hashCommand != null ){
@@ -687,26 +701,54 @@ genToggleHiddenRows = function( genArch , genIB , minRow , maxRow ){
   return toggleHiddenRows
 }
 
+
+toggleCommands2 = function( ){
+
+  console.log( 'new function' )
+
+  var urlParts = $(this).attr( 'href').split( ';' )  
+  var arch = urlParts[ 0 ].replace( '#' , '' )
+  var ib = urlParts[ 1 ]
+
+  var releaseQueue = ib.substring( 0 , ib.lastIndexOf( "_" ) )
+  var ibDate = ib.substring( ib.lastIndexOf( "_" ) + 1 , ib.length )
+
+  var fileNameCommands = 'data/commands/' + arch + '/' + ibDate + '/' + releaseQueue + '.json'
+
+  console.log( fileNameCommands )
+
+  var cmdParts = $(this).attr( 'showCMD').split( ';' )
+  var commandsDiv =  $( '#' + cmdParts[ 0 ].replace( '.' , '-' ) )
+  var numSteps = cmdParts[ 1 ]
+
+  togglerFunction = genToggleCommands( commandsDiv , numSteps , fileNameCommands , cmdParts[ 0 ].split( '-' )[ 3 ] )
+  togglerFunction()
+
+}
+
+
 /**
  * Generates a toggler function for the commands Div
  * this also read the file with the command and writes it to the div if necessary
  */
-genToggleCommands = function( commandsDiv , steps , commandsTitle , fileNameCommands , workflowID ){
+genToggleCommands = function( commandsDiv , numSteps , fileNameCommands , workflowID ){
   /**
    * toggles the command div set before
    */
   toggleCommands = function( ){
-   
-    // if the text is "-" it means that the commands have not been loaded
-    // when the commands are loaded the text becomes "Commands:"
-    if ( commandsTitle.text() == '-' ){
+  
+    // this atribube indicates if the div has been shown, to avoid filling it again with the commands
+    // each time the user clicks 
+    if ( commandsDiv.attr( 'wasShown' ) == 'no' ){
 
-      commandsTitle.text( 'Commands:' )
+      commandsDiv.attr( 'wasShown' , 'yes' )
+
+      console.log( 'first time' )
 
       console.log( 'I have to check this file' )
       console.log( fileNameCommands )
 
-      getHashCommandsToDiv = genGetHashCommandsToDiv(workflowID , steps , commandsDiv )
+      getHashCommandsToDiv = genGetHashCommandsToDiv(workflowID , numSteps , commandsDiv )
 
       $.getJSON( fileNameCommands , getHashCommandsToDiv )
       console.log( 'file read' )
