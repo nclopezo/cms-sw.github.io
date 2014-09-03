@@ -282,7 +282,7 @@ addWorkflowRow = function( workflowResult , table , counter , statistics , arch 
  */
 addRowsTable = function( results , arch , ib , table , progressBar ){
 
-  table.attr( 'class' , 'table table-striped table-condensed' )
+  table.attr( 'class' , 'table table-striped table-condensed table-responsive' )
   table.attr( 'id' , 'resultsTable-' + arch + '-' + ib ) 
 
   addHeaderToTable( table )
